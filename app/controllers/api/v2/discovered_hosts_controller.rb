@@ -95,9 +95,26 @@ module Api
 
       def facts
         @discovered_host, state = Host::Discovered.import_host_and_facts(params[:facts])
+        if state
+          state = @discovered_host.auto_provision if Setting['discovery_auto']
+        else
+          Rails.logger.warn "Discovered facts import unsuccessful, skipping auto provisioning"
+        end
         process_response state
       rescue ::Foreman::Exception => e
         render :json => {'message'=>e.to_s}, :status => :unprocessable_entity
+      end
+
+      api :POST, "/discovered_hosts/:id/auto_provision", N_("Execute rules against a discovered host")
+
+      def auto_provision
+        # XXX TBD
+      end
+
+      api :POST, "/discovered_hosts/auto_provision_all", N_("Execute rules against all currently discovered hosts")
+
+      def auto_provision_all
+        # XXX TBD
       end
 
       private

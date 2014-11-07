@@ -10,6 +10,7 @@ Rails.application.routes.draw do
     resources :discovered_hosts do
       member do
         get 'refresh_facts'
+        post 'auto_provision'
       end
       collection do
         get 'multiple_destroy'
@@ -19,7 +20,15 @@ Rails.application.routes.draw do
         get  'select_multiple_location'
         post 'update_multiple_location'
         get  'auto_complete_search'
+        post 'auto_provision_all'
       end
+    end
+  end
+
+  resources :discovery_rules, :except => [:show] do
+    member do
+      get :enable
+      get :disable
     end
   end
 

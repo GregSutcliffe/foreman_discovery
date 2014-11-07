@@ -6,7 +6,7 @@ class DiscoveredHostsController < ::ApplicationController
   # Avoid auth for discovered host creation
   skip_before_filter :require_login, :require_ssl, :authorize, :verify_authenticity_token, :set_taxonomy, :session_expiry, :update_activity_time, :only => :create
 
-  before_filter :find_by_name, :only => %w[show edit update destroy refresh_facts convert]
+  before_filter :find_by_name, :only => %w[show edit update destroy refresh_facts convert auto_provision]
   before_filter :find_multiple, :only => [:multiple_destroy, :submit_multiple_destroy]
   before_filter :taxonomy_scope, :only => [:edit]
 
@@ -121,6 +121,40 @@ class DiscoveredHostsController < ::ApplicationController
     render :json => @items
   end
 
+  def auto_provision
+    if rule = @host.find_discovery_rule
+      @host = @host.becomes(::Host::Managed)
+      @host.type = 'Host::Managed'
+      @host.managed = true
+      @host.build = true
+      #@host.name = @host.render_template(rule.hostname || @host.name)
+      @host.hostgroup_id = rule.hostgroup_id
+      @host.comment = "Auto-discovered and provisioned via rule '#{rule.name}'"
+      #@host.discovery_rule = rule
+      if @host.save!
+      #if @host.auto_provision rule
+        process_success :success_msg => _("Host %s was provisioned with rule %s") % [@host.name, rule.name], :success_redirect => :back
+      else
+        process_error :error_msg => _("Failed to auto provision host %s") % @host.name, :redirect => :back
+      end
+    else
+      process_success :success_msg => _("No rule found for host %s") % @host.name, :success_redirect => :back
+    end
+  end
+
+  def auto_provision_all
+    # For each discovered host
+    result = true
+    Host::Discovered.order(:created_at).each do |discovered_host|
+      result &= discovered_host.auto_provision
+    end
+    if result
+      process_success :success_msg => _("Discovered hosts are provisioning now"), :success_redirect => :back
+    else
+      process_error :error_msg => _("Errors during auto provisioning"), :redirect => :back
+    end
+  end
+
   private
 
   def resource_base
@@ -162,6 +196,10 @@ class DiscoveredHostsController < ::ApplicationController
         :edit
       when 'submit_multiple_destroy', 'multiple_destroy'
         :destroy
+      when 'auto_provision'
+        :auto_provision
+      when 'auto_provision_all'
+        :auto_provision_all
       else
         super
     end

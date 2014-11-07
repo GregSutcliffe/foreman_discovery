@@ -4,6 +4,8 @@ module Host::ManagedExtensions
   included do
     # execute standard callbacks
     after_validation :queue_reboot
+
+    belongs_to :discovery_rule
   end
 
   def queue_reboot
@@ -20,6 +22,7 @@ module Host::ManagedExtensions
     else
       logger.info "ForemanDiscovery: reboot result: failed"
     end
+    true
   rescue => e
     failure _("Failed to reboot: %s") % e.message
   end
@@ -27,6 +30,20 @@ module Host::ManagedExtensions
   def delReboot
     # nothing to do here, in reality we should never hit this method since this should be the
     # last action in the queue.
+  end
+
+  module InstanceMethods
+
+    def auto_provision rule
+      self.type = 'Host::Managed'
+      self.managed = true
+      self.build = true
+      self.name = render_template(rule.hostname || name)
+      self.hostgroup_id = rule.hostgroup_id
+      self.comment = "Auto-discovered and provisioned via rule '#{rule.name}'"
+      self.save!
+    end
+
   end
 
 end
