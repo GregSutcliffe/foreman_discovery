@@ -122,24 +122,25 @@ class DiscoveredHostsController < ::ApplicationController
   end
 
   def auto_provision
-    if rule = @host.find_discovery_rule
-      @host = @host.becomes(::Host::Managed)
-      @host.type = 'Host::Managed'
-      @host.managed = true
-      @host.build = true
-      #@host.name = @host.render_template(rule.hostname || @host.name)
-      @host.hostgroup_id = rule.hostgroup_id
-      @host.comment = "Auto-discovered and provisioned via rule '#{rule.name}'"
-      #@host.discovery_rule = rule
-      if @host.save!
-      #if @host.auto_provision rule
-        process_success :success_msg => _("Host %s was provisioned with rule %s") % [@host.name, rule.name], :success_redirect => :back
+    if find_rule
+      new_host                   = @host.becomes(::Host::Managed)
+      new_host.type              = 'Host::Managed'
+      new_host.managed           = true
+      new_host.build             = true
+      new_host.name              = new_host.render_template(@rule.hostname || new_host.name)
+      new_host.hostgroup_id      = @rule.hostgroup.id
+      new_host.comment           = "Auto-discovered and provisioned via rule '#{@rule.name}'"
+      new_host.discovery_rule_id = @rule.id
+
+      if new_host.save
+        process_success :success_msg => _("Host %s was provisioned with rule %s") % [@host.name, @rule.name], :success_redirect => :back
       else
         process_error :error_msg => _("Failed to auto provision host %s") % @host.name, :redirect => :back
       end
     else
       process_success :success_msg => _("No rule found for host %s") % @host.name, :success_redirect => :back
     end
+
   end
 
   def auto_provision_all
@@ -259,6 +260,28 @@ class DiscoveredHostsController < ::ApplicationController
       @location ||= Location.current
       @location ||= Location.my_locations.first
     end
+  end
+
+  def find_rule
+    Rails.logger.debug "Finding auto discovery rule for host #{@host.name} (#{@host.id})"
+    # for each discovery rule ordered by priority
+    DiscoveryRule.where(:enabled => true).order(:priority).each do |rule|
+      max = rule.max_count
+      usage = rule.hosts.size
+      Rails.logger.debug "Applying rule #{rule.name} (#{rule.id}) [#{usage}/#{max}]"
+      # if the rule has free slots
+      if max == 0 || usage < max
+        # try to match the search
+        if Host::Discovered.where(:id => @host.id).search_for(rule.search).size > 0
+          Rails.logger.info "Match found for host #{@host.name} (#{@host.id}) rule #{rule.name} (#{rule.id})"
+          @rule = rule
+          return @rule
+        end
+      else
+        Rails.logger.info "Skipping drained rule #{rule.name} (#{rule.id}) with max set to #{rule.max_count}"
+      end
+    end
+    return false
   end
 
 end

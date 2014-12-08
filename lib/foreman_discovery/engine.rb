@@ -103,7 +103,6 @@ module ForemanDiscovery
 
       # Model extensions
       ::Host::Managed.send :include, Host::ManagedExtensions
-      ::Host::Discovered.send :include, Host::AutodiscoveryExtensions
       ::Hostgroup.send :include, HostgroupExtensions
     end
 
