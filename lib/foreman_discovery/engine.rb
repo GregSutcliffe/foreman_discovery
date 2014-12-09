@@ -91,6 +91,10 @@ module ForemanDiscovery
 
       # Include subnet extensions
       ::Subnet.send :include, Concerns::DiscoverySubnet
+
+      # Include TFTP extensions
+      ::ProxyAPI::TFTP.send :include, Concerns::DiscoveryProxyApiExtensions
+
     end
 
     rake_tasks do
